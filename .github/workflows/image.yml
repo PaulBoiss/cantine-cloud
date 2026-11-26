@@ -1,0 +1,52 @@
+name: image
+
+# Publie l'image publique ghcr.io/paulboiss/cantine-cloud à chaque étiquette vX.Y
+# (git tag v1.0 && git push origin v1.0). Rien ne tourne sur les pull requests.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: |
+          pip install -r app/requirements.txt pytest==9.2.0
+          python -m pytest
+
+  publier:
+    needs: tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Construire et publier
+        env:
+          ETIQUETTE: ${{ github.ref_name }}
+          JETON: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version="${ETIQUETTE#v}"
+          echo "$JETON" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.version=${version}" \
+            -t "${image}:${version}" -t "${image}:latest" .
+          docker push "${image}:${version}"
+          docker push "${image}:latest"
+          docker logout ghcr.io

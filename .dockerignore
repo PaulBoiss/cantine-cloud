@@ -1,0 +1,11 @@
+.git
+.github
+.env
+*.env
+tests
+infra
+k8s
+sbom*.json
+gitleaks.json
+__pycache__
+*.pyc
